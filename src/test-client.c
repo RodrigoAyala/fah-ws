@@ -25,7 +25,7 @@
 #include <getopt.h>
 #include <string.h>
 
-#include "./lib/libwebsockets.h"
+#include "./lib/libwebsockets/libwebsockets.h"
 
 static unsigned int opts;
 static int was_closed;

@@ -40,7 +40,7 @@
 #endif
 #endif
 
-#include "./lib/libwebsockets.h"
+#include "./lib/libwebsockets/libwebsockets.h"
 
 
 /*
