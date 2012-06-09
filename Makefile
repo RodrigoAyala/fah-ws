@@ -2,10 +2,10 @@ CC := gcc
 CFLAGS := -O2
 
 all:
-	gcc -DLWS_NO_FORK fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o src/fah-ws  
+	gcc -DLWS_NO_FORK src/fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o bin/fah-ws  
 
 debug:
-	gcc -g -DLWS_NO_FORK fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o src/fah-ws
+	gcc -g -DLWS_NO_FORK src/fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o bin/fah-ws
 
 clean:
-	rm -f fah-ws *.o
+	rm -f bin fah-ws *.o fah-ws.dSYM
