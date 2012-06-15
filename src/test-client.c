@@ -48,54 +48,12 @@ static struct libwebsocket *wsi_mirror;
 
 enum demo_protocols {
 
-	PROTOCOL_DUMB_INCREMENT,
+	
 	PROTOCOL_LWS_MIRROR,
 
 	/* always last */
 	DEMO_PROTOCOL_COUNT
 };
-
-
-/* dumb_increment protocol */
-
-static int
-callback_dumb_increment(struct libwebsocket_context *this,
-			struct libwebsocket *wsi,
-			enum libwebsocket_callback_reasons reason,
-					       void *user, void *in, size_t len)
-{
-	switch (reason) {
-
-	case LWS_CALLBACK_CLOSED:
-		fprintf(stderr, "LWS_CALLBACK_CLOSED\n");
-		was_closed = 1;
-		break;
-
-	case LWS_CALLBACK_CLIENT_RECEIVE:
-		((char *)in)[len] = '\0';
-		fprintf(stderr, "rx %d '%s'\n", (int)len, (char *)in);
-		break;
-
-	/* because we are protocols[0] ... */
-
-	case LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED:
-		if ((strcmp(in, "deflate-stream") == 0) && deny_deflate) {
-			fprintf(stderr, "denied deflate-stream extension\n");
-			return 1;
-		}
-		if ((strcmp(in, "x-google-mux") == 0) && deny_mux) {
-			fprintf(stderr, "denied x-google-mux extension\n");
-			return 1;
-		}
-
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
 
 
 /* lws-mirror_protocol */
@@ -169,11 +127,6 @@ callback_lws_mirror(struct libwebsocket_context *this,
 
 static struct libwebsocket_protocols protocols[] = {
 	{
-		"dumb-increment-protocol",
-		callback_dumb_increment,
-		0,
-	},
-	{
 		"lws-mirror-protocol",
 		callback_lws_mirror,
 		0,
@@ -200,12 +153,11 @@ static struct option options[] = {
 int main(int argc, char **argv)
 {
 	int n = 0;
-	int port = 7681;
+	int port = 8080;
 	int use_ssl = 0;
 	struct libwebsocket_context *context;
 	const char *address;
-	struct libwebsocket *wsi_dumb;
-    struct libwebsocket *wsi_dumbb[10000];
+
 	int ietf_version = -1; /* latest */
 	int mirror_lifetime = 0;
 
@@ -267,11 +219,9 @@ int main(int argc, char **argv)
 
 
 	/* create a client websocket using dumb increment protocol */
-    int i;
     
-    for(i=0;i<7000;i++) {
     
-	(wsi_dumbb)[i] = libwebsocket_client_connect(context, address, port, use_ssl,
+	/*(wsi_dumbb)[i] = libwebsocket_client_connect(context, address, port, use_ssl,
 			"/", argv[optind], argv[optind],
 			 protocols[PROTOCOL_DUMB_INCREMENT].name, ietf_version);
 
@@ -281,8 +231,8 @@ int main(int argc, char **argv)
 	}
 
 	fprintf(stderr, "Websocket connections opened %i\n",i);
-
-    };
+*/
+    
 	/*
 	 * sit there servicing the websocket context to handle incoming
 	 * packets, and drawing random circles on the mirror protocol websocket
