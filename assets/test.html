@@ -2,35 +2,14 @@
 <html lang="en">
 <head>
  <meta charset=utf-8 />
- <title>Minimal Websocket test app</title>
+ <title>Websockets Test</title>
 </head>
 
 <body>
 <h3>Detected Browser: <div id=brow>...</div></h3>
-<h2>libwebsockets "dumb-increment-protocol" test applet</h2>
-The incrementing number is coming from the server and is individual for
-each connection to the server... try opening a second browser window.
-Click the button to send the server a websocket message to
-reset the number.<br><br>
 
-<table>
-	<tr>
-		<td align=center><input type=button id=offset value="Reset counter" onclick="reset();" ></td>
-		<td width=100 align=center><div id=number> </div></td>
-		<td id=wsdi_statustd align=center><div id=wsdi_status>Not initialized</div></td>
-	</tr>
-</table>
-
-<h2>libwebsockets "lws-mirror-protocol" test applet</h2>
-Use the mouse to draw on the canvas below -- all other browser windows open
-on this page see your drawing in realtime and you can see any of theirs as
-well.
-<p>
-The lws-mirror protocol doesn't interpret what is being sent to it, it just
-re-sends it to every other websocket it has a connection with using that
-protocol, including the guy who sent the packet.
-<p>libwebsockets-test-client spams circles on to this shared canvas when
-run.</p>
+<h2>libwebsockets "lws-mirror-protocol"</h2>
+<p> Mirror </p>
 <br><br>
 
 <table>
@@ -250,11 +229,13 @@ function reset() {
 	var color = "#000000";
 
 	if (BrowserDetect.browser == "Firefox" && BrowserDetect.version < 12) {
-		socket_lm = new MozWebSocket(get_appropriate_ws_url(),
-				   "lws-mirror-protocol");
+		socket_lm = new MozWebSocket(get_appropriate_ws_url(),"rhyboo");
+//		,
+//				   "lws-mirror-protocol");
 	} else {
-		socket_lm = new WebSocket(get_appropriate_ws_url(),
-				   "lws-mirror-protocol");
+		socket_lm = new WebSocket(get_appropriate_ws_url(),"rhyboo");
+		//,
+//				   "lws-mirror-protocol");
 	}
 
 
