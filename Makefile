@@ -1,8 +1,9 @@
 CC := gcc
-CFLAGS := -O2
+CFLAGS := -O3
 
 all:
-	gcc -DLWS_NO_FORK src/fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o bin/fah-ws  
+	$(CC) $(CFLAGS) -DLWS_NO_FORK src/fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -levent -o bin/fah-ws  
+	$(CC) $(CFLAGS) -DLWS_NO_FORK src/test-client.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o bin/test-client
 
 debug:
 	gcc -g -DLWS_NO_FORK src/fah-ws.c lib/libwebsockets/*.c lib/hiredis/*.c -lz -o bin/fah-ws
