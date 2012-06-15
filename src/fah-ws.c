@@ -5,18 +5,26 @@
 #include <string.h>
 #include <sys/time.h>
 
+#include <string.h>
+#include <signal.h>
+#include "../lib/hiredis/hiredis.h"
+#include "../lib/hiredis/async.h"
+#include "../lib/hiredis/adapters/libevent.h"
+
+
+
 #include "../lib/libwebsockets/libwebsockets.h"
 
-
+ redisAsyncContext *redis_con = NULL;
 
 static int close_testing;
 
 enum demo_protocols {
 	/* always first */
 	PROTOCOL_HTTP = 0,
+	//PROTOCOL_DUMB_INCREMENT,
 
-	PROTOCOL_DUMB_INCREMENT,
-	PROTOCOL_LWS_MIRROR,
+	PROTOCOL_LWS_RHYBOO,
 
 	/* always last */
 	DEMO_PROTOCOL_COUNT
@@ -43,12 +51,23 @@ static int callback_http(struct libwebsocket_context *context,
 			break;
 		}
 
+
+
 		/* send the script... when it runs it'll start websockets */
 
-		if (libwebsockets_serve_http_file(wsi,
-				  LOCAL_RESOURCE_PATH"/test.html", "text/html"))
-			fprintf(stderr, "Failed to send HTTP file\n");
+        if (in && strcmp(in,"/test.html") == 0) {
+			if (libwebsockets_serve_http_file(wsi,
+					  LOCAL_RESOURCE_PATH"/test.html", "text/html"))
+				fprintf(stderr, "Failed to send HTTP file\n");
+			break;
+	    } 
+
+    	if (libwebsockets_serve_http_file(wsi,
+				  LOCAL_RESOURCE_PATH"/ws.js", "text/javascript"))
+			fprintf(stderr, "Failed to send JS file\n");
 		break;
+
+
 
 	/*
 	 * callback for confirming to continue with client IP appear in
@@ -122,91 +141,11 @@ dump_handshake_info(struct lws_tokens *lwst)
 	}
 }
 
-/* dumb_increment protocol */
-
-/*
- * one of these is auto-created for each connection and a pointer to the
- * appropriate instance is passed to the callback in the user parameter
- *
- * for this example protocol we use it to individualize the count for each
- * connection.
- */
-
-struct per_session_data__dumb_increment {
-	int number;
-};
-
-static int
-callback_dumb_increment(struct libwebsocket_context *context,
-			struct libwebsocket *wsi,
-			enum libwebsocket_callback_reasons reason,
-					       void *user, void *in, size_t len)
-{
-	int n;
-	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 512 +
-						  LWS_SEND_BUFFER_POST_PADDING];
-	unsigned char *p = &buf[LWS_SEND_BUFFER_PRE_PADDING];
-	struct per_session_data__dumb_increment *pss = user;
-
-	switch (reason) {
-
-	case LWS_CALLBACK_ESTABLISHED:
-		fprintf(stderr, "callback_dumb_increment: "
-						 "LWS_CALLBACK_ESTABLISHED\n");
-		pss->number = 0;
-		break;
-
-	/*
-	 * in this protocol, we just use the broadcast action as the chance to
-	 * send our own connection-specific data and ignore the broadcast info
-	 * that is available in the 'in' parameter
-	 */
-
-	case LWS_CALLBACK_BROADCAST:
-		n = sprintf((char *)p, "%d", pss->number++);
-		n = libwebsocket_write(wsi, p, n, LWS_WRITE_TEXT);
-		if (n < 0) {
-			fprintf(stderr, "ERROR writing to socket");
-			return 1;
-		}
-		if (close_testing && pss->number == 50) {
-			fprintf(stderr, "close tesing limit, closing\n");
-			libwebsocket_close_and_free_session(context, wsi,
-						       LWS_CLOSE_STATUS_NORMAL);
-		}
-		break;
-
-	case LWS_CALLBACK_RECEIVE:
-		fprintf(stderr, "rx %d\n", (int)len);
-		if (len < 6)
-			break;
-		if (strcmp(in, "reset\n") == 0)
-			pss->number = 0;
-		break;
-	/*
-	 * this just demonstrates how to use the protocol filter. If you won't
-	 * study and reject connections based on header content, you don't need
-	 * to handle this callback
-	 */
-
-	case LWS_CALLBACK_FILTER_PROTOCOL_CONNECTION:
-		dump_handshake_info((struct lws_tokens *)(long)user);
-		/* you could return non-zero here and kill the connection */
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-
-/* lws-mirror_protocol */
+/* lws-rhyboo_protocol */
 
 #define MAX_MESSAGE_QUEUE 64
 
-struct per_session_data__lws_mirror {
+struct per_session_data__lws_rhyboo {
 	struct libwebsocket *wsi;
 	int ringbuffer_tail;
 };
@@ -221,18 +160,18 @@ static int ringbuffer_head;
 
 
 static int
-callback_lws_mirror(struct libwebsocket_context *context,
+callback_lws_rhyboo(struct libwebsocket_context *context,
 			struct libwebsocket *wsi,
 			enum libwebsocket_callback_reasons reason,
 					       void *user, void *in, size_t len)
 {
 	int n;
-	struct per_session_data__lws_mirror *pss = user;
+	struct per_session_data__lws_rhyboo *pss = user;
 
 	switch (reason) {
 
 	case LWS_CALLBACK_ESTABLISHED:
-		fprintf(stderr, "callback_lws_mirror: "
+		fprintf(stderr, "callback_lws_rhyboo: "
 						 "LWS_CALLBACK_ESTABLISHED\n");
 		pss->ringbuffer_tail = ringbuffer_head;
 		pss->wsi = wsi;
@@ -270,7 +209,7 @@ callback_lws_mirror(struct libwebsocket_context *context,
 	case LWS_CALLBACK_BROADCAST:
 		n = libwebsocket_write(wsi, in, len, LWS_WRITE_TEXT);
 		if (n < 0)
-			fprintf(stderr, "mirror write failed\n");
+			fprintf(stderr, "rhyboo write failed\n");
 		break;
 
 	case LWS_CALLBACK_RECEIVE:
@@ -326,14 +265,9 @@ static struct libwebsocket_protocols protocols[] = {
 		0			/* per_session_data_size */
 	},
 	{
-		"dumb-increment-protocol",
-		callback_dumb_increment,
-		sizeof(struct per_session_data__dumb_increment),
-	},
-	{
-		"lws-mirror-protocol",
-		callback_lws_mirror,
-		sizeof(struct per_session_data__lws_mirror)
+		"rhyboo",
+		callback_lws_rhyboo,
+		sizeof(struct per_session_data__lws_rhyboo)
 	},
 	{
 		NULL, NULL, 0		/* End of list */
@@ -350,6 +284,20 @@ static struct option options[] = {
 	{ NULL, 0, 0, 0 }
 };
 
+
+void onMessage(redisAsyncContext *c, void *reply, void *privdata) {
+    redisReply *r = reply;
+    if (reply == NULL) return;
+    printf("\n");
+    if (r->type == REDIS_REPLY_ARRAY) {
+    	int j;
+        for (j = 0; j < r->elements; j++) {
+            printf("%u) %s\n", j, r->element[j]->str);
+        }
+    }
+}
+
+
 int main(int argc, char **argv)
 {
 	int n = 0;
@@ -359,7 +307,7 @@ int main(int argc, char **argv)
 			LOCAL_RESOURCE_PATH"/libwebsockets-test-server.key.pem";
 	unsigned char buf[LWS_SEND_BUFFER_PRE_PADDING + 1024 +
 						  LWS_SEND_BUFFER_POST_PADDING];
-	int port = 7681;
+	int port = 8080;
 	int use_ssl = 0;
 	struct libwebsocket_context *context;
 	int opts = 0;
@@ -396,7 +344,7 @@ int main(int argc, char **argv)
 			close_testing = 1;
 			fprintf(stderr, " Close testing mode -- closes on "
 					   "client after 50 dumb increments"
-					   "and suppresses lws_mirror spam\n");
+					   "and suppresses lws_rhyboo spam\n");
 			break;
 		case 'h':
 			fprintf(stderr, "Usage: test-server "
@@ -414,6 +362,24 @@ int main(int argc, char **argv)
 	if (context == NULL) {
 		fprintf(stderr, "libwebsocket init failed\n");
 		return -1;
+	} else {
+		fprintf(stderr," Connecting to redis server");
+
+		signal(SIGPIPE, SIG_IGN);
+	    struct event_base *base = event_base_new();
+
+	    redis_con = redisAsyncConnect("127.0.0.1", 6379);
+	    if (redis_con->err) {
+	        printf("error connecting to redis server: %s\n", redis_con->errstr);
+	        return 1;
+	    }
+
+	    redisLibeventAttach(redis_con, base);
+	    redisAsyncCommand(redis_con, onMessage, NULL, "SUBSCRIBE rhyboo");
+	    event_base_dispatch(base);
+        //event_base_loop(base,0x01);    
+
+
 	}
 
 	buf[LWS_SEND_BUFFER_PRE_PADDING] = 'x';
@@ -444,12 +410,12 @@ int main(int argc, char **argv)
 		 * We take care of pre-and-post padding allocation.
 		 */
 
-		if (((unsigned int)tv.tv_usec - oldus) > 50000) {
+		/*if (((unsigned int)tv.tv_usec - oldus) > 50000) {
 			libwebsockets_broadcast(
 					&protocols[PROTOCOL_DUMB_INCREMENT],
 					&buf[LWS_SEND_BUFFER_PRE_PADDING], 1);
 			oldus = tv.tv_usec;
-		}
+		}*/
 
 		/*
 		 * This example server does not fork or create a thread for
@@ -460,7 +426,7 @@ int main(int argc, char **argv)
 		 * If no socket is needing service, the call below returns
 		 * immediately and quickly.
 		 */
-
+        
 		libwebsocket_service(context, 50);
 	}
 
@@ -483,26 +449,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	while (1) {
-
-		usleep(50000);
-
-		/*
-		 * This broadcasts to all dumb-increment-protocol connections
-		 * at 20Hz.
-		 *
-		 * We're just sending a character 'x', in these examples the
-		 * callbacks send their own per-connection content.
-		 *
-		 * You have to send something with nonzero length to get the
-		 * callback actions delivered.
-		 *
-		 * We take care of pre-and-post padding allocation.
-		 */
-
-		libwebsockets_broadcast(&protocols[PROTOCOL_DUMB_INCREMENT],
-					&buf[LWS_SEND_BUFFER_PRE_PADDING], 1);
-	}
+	
 
 #endif
 
@@ -510,3 +457,6 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+
+
